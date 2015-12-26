@@ -89,18 +89,15 @@ void NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint32_t 
 	
 	if(readdata || writedata)
 	{
-		flags |= TMIO_STAT0_DATAEND;
+		flags |= TMIO_STAT_DATAEND;
 	}
 	
 	ctx->error = 0;
-	while((sdmmc_read16(REG_SDSTATUS1) & TMIO_STAT1_CMD_BUSY)); //mmc working?
-	sdmmc_write16(REG_SDIRMASK0,0);
-	sdmmc_write16(REG_SDIRMASK1,0);
-	sdmmc_write16(REG_SDSTATUS0,0);
-	sdmmc_write16(REG_SDSTATUS1,0);
+	while((sdmmc_read32(REG_SDSTATUS) & TMIO_STAT_CMD_BUSY)); //mmc working?
+	sdmmc_write32(REG_SDIRMASK,0);
+	sdmmc_write32(REG_SDSTATUS,0);
 	sdmmc_mask16(REG_DATACTL32,0x1800,0);
-	sdmmc_write16(REG_SDCMDARG0,args &0xFFFF);
-	sdmmc_write16(REG_SDCMDARG1,args >> 16);
+	sdmmc_write32(REG_SDCMDARG,args);
 	sdmmc_write16(REG_SDCMD,cmd &0xFFFF);
 	
 	uint32_t size = ctx->size;
@@ -110,22 +107,21 @@ void NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint32_t 
 	int useBuf = ( NULL != dataPtr );
 	int useBuf32 = (useBuf && (0 == (3 & ((uint32_t)dataPtr))));
 	
-	uint16_t status0 = 0;
 	while(1)
 	{
-		volatile uint16_t status1 = sdmmc_read16(REG_SDSTATUS1);
+		volatile uint16_t status = sdmmc_read16(REG_SDSTATUS);
 #ifdef DATA32_SUPPORT
 		volatile uint16_t ctl32 = sdmmc_read16(REG_DATACTL32);
 		if((ctl32 & 0x100))
 #else
-		if((status1 & TMIO_STAT1_RXRDY))
+		if((status & TMIO_STAT_RXRDY))
 #endif
 		{
 			if(readdata)
 			{
 				if(useBuf)
 				{
-					sdmmc_mask16(REG_SDSTATUS1, TMIO_STAT1_RXRDY, 0);
+					sdmmc_mask32(REG_SDSTATUS, TMIO_STAT_RXRDY, 0);
 					if(size > 0x1FF)
 					{
 						#ifdef DATA32_SUPPORT
@@ -156,14 +152,14 @@ void NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint32_t 
 #ifdef DATA32_SUPPORT
 		if(!(ctl32 & 0x200))
 #else
-		if((status1 & TMIO_STAT1_TXRQ))
+		if((status & TMIO_STAT_TXRQ))
 #endif
 		{
 			if(writedata)
 			{
 				if(useBuf)
 				{
-					sdmmc_mask16(REG_SDSTATUS1, TMIO_STAT1_TXRQ, 0);
+					sdmmc_mask32(REG_SDSTATUS, TMIO_STAT_TXRQ, 0);
 					if(size > 0x1FF)
 					{
 						#ifdef DATA32_SUPPORT
@@ -184,39 +180,36 @@ void NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint32_t 
 				sdmmc_mask16(REG_DATACTL32, 0x1000, 0);
 			}
 		}
-		if(status1 & TMIO_MASK_GW)
+		if(status & TMIO_MASK_GW)
 		{
 			ctx->error |= 4;
 			break;
 		}
 		
-		if(!(status1 & TMIO_STAT1_CMD_BUSY))
+		if(!(status & TMIO_STAT_CMD_BUSY))
 		{
-			status0 = sdmmc_read16(REG_SDSTATUS0);
-			if(sdmmc_read16(REG_SDSTATUS0) & TMIO_STAT0_CMDRESPEND)
+			if(status & TMIO_STAT_CMDRESPEND)
 			{
 				ctx->error |= 0x1;
 			}
-			if(status0 & TMIO_STAT0_DATAEND)
+			if(status & TMIO_STAT_DATAEND)
 			{
 				ctx->error |= 0x2;
 			}
 			
-			if((status0 & flags) == flags)
+			if((status & flags) == flags)
 				break;
 		}
 	}
-	ctx->stat0 = sdmmc_read16(REG_SDSTATUS0);
-	ctx->stat1 = sdmmc_read16(REG_SDSTATUS1);
-	sdmmc_write16(REG_SDSTATUS0,0);
-	sdmmc_write16(REG_SDSTATUS1,0);
+	ctx->stat = sdmmc_read32(REG_SDSTATUS);
+	sdmmc_write32(REG_SDSTATUS,0);
 	
 	if(getSDRESP != 0)
 	{
-		ctx->ret[0] = sdmmc_read16(REG_SDRESP0) | (sdmmc_read16(REG_SDRESP1) << 16);
-		ctx->ret[1] = sdmmc_read16(REG_SDRESP2) | (sdmmc_read16(REG_SDRESP3) << 16);
-		ctx->ret[2] = sdmmc_read16(REG_SDRESP4) | (sdmmc_read16(REG_SDRESP5) << 16);
-		ctx->ret[3] = sdmmc_read16(REG_SDRESP6) | (sdmmc_read16(REG_SDRESP7) << 16);
+		ctx->ret[0] = sdmmc_read32(REG_SDRESP0);
+		ctx->ret[1] = sdmmc_read32(REG_SDRESP1);
+		ctx->ret[2] = sdmmc_read32(REG_SDRESP2);
+		ctx->ret[3] = sdmmc_read32(REG_SDRESP3);
 	}
 }
 
