@@ -96,7 +96,7 @@ void NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint32_t 
 	while((sdmmc_read32(REG_SDSTATUS) & TMIO_STAT_CMD_BUSY)); //mmc working?
 	sdmmc_write32(REG_SDIRMASK,0);
 	sdmmc_write32(REG_SDSTATUS,0);
-	sdmmc_mask16(REG_DATACTL32,TMIO32_IRQ_RXRDY | TMIO32_IRQ_TXRQ,0);
+	sdmmc_write16(REG_DATACTL32,TMIO32_ENABLE | TMIO32_STAT_RXRDY);
 	sdmmc_write32(REG_SDCMDARG,args);
 	sdmmc_write16(REG_SDCMD,cmd &0xFFFF);
 	
@@ -117,11 +117,16 @@ void NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint32_t 
 		if((status & TMIO_STAT_RXRDY))
 #endif
 		{
+#ifdef DATA32_SUPPORT
+			sdmmc_write16(REG_DATACTL32, TMIO32_ENABLE);
+#else
+			sdmmc_write32(REG_SDSTATUS, ~TMIO_STAT_RXRDY);
+#endif
+
 			if(readdata)
 			{
 				if(useBuf)
 				{
-					sdmmc_mask32(REG_SDSTATUS, TMIO_STAT_RXRDY, 0);
 					if(size > 0x1FF)
 					{
 						#ifdef DATA32_SUPPORT
@@ -145,8 +150,6 @@ void NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint32_t 
 						size -= 0x200;
 					}
 				}
-				
-				sdmmc_mask16(REG_DATACTL32, TMIO32_IRQ_RXRDY, 0);
 			}
 		}
 #ifdef DATA32_SUPPORT
@@ -155,11 +158,17 @@ void NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint32_t 
 		if((status & TMIO_STAT_TXRQ))
 #endif
 		{
+#ifdef DATA32_SUPPORT
+			sdmmc_write16(REG_DATACTL32,
+				TMIO32_ENABLE | TMIO32_STAT_RXRDY | TMIO32_STAT_BUSY);
+#else
+			sdmmc_write32(REG_SDSTATUS, ~TMIO_STAT_TXRQ);
+#endif
+
 			if(writedata)
 			{
 				if(useBuf)
 				{
-					sdmmc_mask32(REG_SDSTATUS, TMIO_STAT_TXRQ, 0);
 					if(size > 0x1FF)
 					{
 						#ifdef DATA32_SUPPORT
@@ -176,8 +185,6 @@ void NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint32_t 
 						size -= 0x200;
 					}
 				}
-				
-				sdmmc_mask16(REG_DATACTL32, TMIO32_IRQ_TXRQ, 0);
 			}
 		}
 		if(status & TMIO_MASK_GW)
