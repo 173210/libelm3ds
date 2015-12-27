@@ -82,7 +82,6 @@ void inittarget(struct mmcdevice *ctx)
 
 void NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint32_t args)
 {
-	int getSDRESP = (cmd << 15) >> 31;
 	uint16_t flags = (cmd << 15) >> 31;
 	const int readdata = cmd & 0x20000;
 	const int writedata = cmd & 0x40000;
@@ -210,14 +209,6 @@ void NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint32_t 
 	}
 	ctx->stat = sdmmc_read32(REG_SDSTATUS);
 	sdmmc_write32(REG_SDSTATUS,0);
-	
-	if(getSDRESP != 0)
-	{
-		ctx->ret[0] = sdmmc_read32(REG_SDRESP0);
-		ctx->ret[1] = sdmmc_read32(REG_SDRESP1);
-		ctx->ret[2] = sdmmc_read32(REG_SDRESP2);
-		ctx->ret[3] = sdmmc_read32(REG_SDRESP3);
-	}
 }
 
 int NO_INLINE sdmmc_sdcard_writesectors(uint32_t sector_no, uint32_t numsectors, uint8_t *in)
@@ -410,7 +401,7 @@ int Nand_Init()
 			sdmmc_send_command(&handelNAND,0x10701,0x100000);
 		} while ( !(handelNAND.error & 1) );
 	}
-	while((handelNAND.ret[0] & 0x80000000) == 0);
+	while((sdmmc_read32(REG_SDRESP0) & 0x80000000) == 0);
 	
 	sdmmc_send_command(&handelNAND,0x10602,0x0);
 	if((handelNAND.error & 0x4))return -1;
@@ -421,7 +412,7 @@ int Nand_Init()
 	sdmmc_send_command(&handelNAND,0x10609,handelNAND.initarg << 0x10);
 	if((handelNAND.error & 0x4))return -1;
 	
-	handelNAND.total_size = calcSDSize((uint8_t*)&handelNAND.ret[0],0);
+	handelNAND.total_size = calcSDSize((uint8_t*)SDMMC_BASE + REG_SDRESP0,0);
 	handelNAND.clk = 1;
 	setckl(1);
 	
@@ -451,6 +442,8 @@ int Nand_Init()
 
 int SD_Init()
 {
+	uint32_t resp;
+
 	inittarget(&handelSD);
 	waitcycles(0xF000);
 	sdmmc_send_command(&handelSD,0,0);
@@ -466,10 +459,12 @@ int SD_Init()
 			sdmmc_send_command(&handelSD,0x10769,0x00FF8000 | temp);
 			temp2 = 1;
 		} while ( !(handelSD.error & 1) );
-	}
-	while((handelSD.ret[0] & 0x80000000) == 0);
 
-	if(!((handelSD.ret[0] >> 30) & 1) || !temp)
+		resp = sdmmc_read32(REG_SDRESP0);
+	}
+	while((resp & 0x80000000) == 0);
+
+	if(!((resp >> 30) & 1) || !temp)
 		temp2 = 0;
 	
 	handelSD.isSDHC = temp2;
@@ -479,12 +474,12 @@ int SD_Init()
 	
 	sdmmc_send_command(&handelSD,0x10403,0);
 	if((handelSD.error & 0x4)) return -1;
-	handelSD.initarg = handelSD.ret[0] >> 0x10;
+	handelSD.initarg = sdmmc_read32(REG_SDRESP0) >> 0x10;
 	
 	sdmmc_send_command(&handelSD,0x10609,handelSD.initarg << 0x10);
 	if((handelSD.error & 0x4)) return -1;
 	
-	handelSD.total_size = calcSDSize((uint8_t*)&handelSD.ret[0],-1);
+	handelSD.total_size = calcSDSize((uint8_t*)SDMMC_BASE + REG_SDRESP0,-1);
 	handelSD.clk = 1;
 	setckl(1);
 	

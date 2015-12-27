@@ -89,7 +89,6 @@ extern "C" {
 		uint32_t size;
 		uint32_t error;
 		uint32_t stat;
-		uint32_t ret[4];
 		uint32_t initarg;
 		uint32_t isSDHC;
 		uint32_t clk;
