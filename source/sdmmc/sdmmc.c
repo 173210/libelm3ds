@@ -189,21 +189,12 @@ int NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint32_t a
 		}
 		if(status & TMIO_MASK_GW)
 		{
-			error |= 4;
+			error = 4;
 			break;
 		}
 		
 		if(!(status & TMIO_STAT_CMD_BUSY))
 		{
-			if(status & TMIO_STAT_CMDRESPEND)
-			{
-				error |= 0x1;
-			}
-			if(status & TMIO_STAT_DATAEND)
-			{
-				error |= 0x2;
-			}
-			
 			if((status & flags) == flags)
 				break;
 		}
@@ -400,38 +391,38 @@ int Nand_Init()
 	
 	do
 	{
-		while ( !(sdmmc_send_command(&handelNAND,0x10701,0x100000) & 1) );
+		while (sdmmc_send_command(&handelNAND,0x10701,0x100000));
 	}
 	while((sdmmc_read32(REG_SDRESP0) & 0x80000000) == 0);
 	
-	if((sdmmc_send_command(&handelNAND,0x10602,0x0) & 0x4))
+	if(sdmmc_send_command(&handelNAND,0x10602,0x0))
 		return -1;
 	
-	if((sdmmc_send_command(&handelNAND,0x10403,handelNAND.initarg << 0x10)) & 0x4)
+	if(sdmmc_send_command(&handelNAND,0x10403,handelNAND.initarg << 0x10))
 		return -1;
 	
-	if((sdmmc_send_command(&handelNAND,0x10609,handelNAND.initarg << 0x10) & 0x4))
+	if(sdmmc_send_command(&handelNAND,0x10609,handelNAND.initarg << 0x10))
 		return -1;
 	
 	handelNAND.total_size = calcSDSize((uint8_t*)SDMMC_BASE + REG_SDRESP0,0);
 	handelNAND.clk = 1;
 	setckl(1);
 	
-	if((sdmmc_send_command(&handelNAND,0x10407,handelNAND.initarg << 0x10) & 0x4))
+	if(sdmmc_send_command(&handelNAND,0x10407,handelNAND.initarg << 0x10))
 		return -1;
 	
 	handelNAND.SDOPT = 1;
 	
-	if((sdmmc_send_command(&handelNAND,0x10506,0x3B70100) & 0x4))
+	if(sdmmc_send_command(&handelNAND,0x10506,0x3B70100))
 		return -1;
 	
-	if((sdmmc_send_command(&handelNAND,0x10506,0x3B90100) & 0x4))
+	if(sdmmc_send_command(&handelNAND,0x10506,0x3B90100))
 		return -1;
 	
-	if((sdmmc_send_command(&handelNAND,0x1040D,handelNAND.initarg << 0x10) & 0x4))
+	if(sdmmc_send_command(&handelNAND,0x1040D,handelNAND.initarg << 0x10))
 		return -1;
 	
-	if((sdmmc_send_command(&handelNAND,0x10410,0x200) & 0x4))
+	if(sdmmc_send_command(&handelNAND,0x10410,0x200))
 		return -1;
 	
 	handelNAND.clk |= 0x200; 
@@ -449,7 +440,7 @@ int SD_Init()
 	waitcycles(0xF000);
 	sdmmc_send_command(&handelSD,0,0);
 
-	uint32_t temp = (sdmmc_send_command(&handelSD,0x10408,0x1AA) & 0x1) << 0x1E;
+	uint32_t temp = sdmmc_send_command(&handelSD,0x10408,0x1AA) ? 0 : 0x1 << 0x1E;
 
 	uint32_t temp2 = 0;
 	do
@@ -458,7 +449,7 @@ int SD_Init()
 		{
 			sdmmc_send_command(&handelSD,0x10437,handelSD.initarg << 0x10);
 			temp2 = 1;
-		} while ( !(sdmmc_send_command(&handelSD,0x10769,0x00FF8000 | temp) & 1) );
+		} while (sdmmc_send_command(&handelSD,0x10769,0x00FF8000 | temp));
 
 		resp = sdmmc_read32(REG_SDRESP0);
 	}
@@ -469,35 +460,35 @@ int SD_Init()
 	
 	handelSD.isSDHC = temp2;
 	
-	if((sdmmc_send_command(&handelSD,0x10602,0) & 0x4))
+	if(sdmmc_send_command(&handelSD,0x10602,0))
 		return -1;
 	
-	if((sdmmc_send_command(&handelSD,0x10403,0) & 0x4))
+	if(sdmmc_send_command(&handelSD,0x10403,0))
 		return -1;
 
 	handelSD.initarg = sdmmc_read32(REG_SDRESP0) >> 0x10;
 	
-	if((sdmmc_send_command(&handelSD,0x10609,handelSD.initarg << 0x10) & 0x4))
+	if(sdmmc_send_command(&handelSD,0x10609,handelSD.initarg << 0x10))
 		return -1;
 	
 	handelSD.total_size = calcSDSize((uint8_t*)SDMMC_BASE + REG_SDRESP0,-1);
 	handelSD.clk = 1;
 	setckl(1);
 	
-	if((sdmmc_send_command(&handelSD,0x10507,handelSD.initarg << 0x10) & 0x4))
+	if(sdmmc_send_command(&handelSD,0x10507,handelSD.initarg << 0x10))
 		return -1;
 	
-	if((sdmmc_send_command(&handelSD,0x10437,handelSD.initarg << 0x10) & 0x4))
+	if(sdmmc_send_command(&handelSD,0x10437,handelSD.initarg << 0x10))
 		return -1;
 	
 	handelSD.SDOPT = 1;
-	if((sdmmc_send_command(&handelSD,0x10446,0x2) & 0x4))
+	if(sdmmc_send_command(&handelSD,0x10446,0x2))
 		return -1;
 	
-	if((sdmmc_send_command(&handelSD,0x1040D,handelSD.initarg << 0x10) & 0x4))
+	if(sdmmc_send_command(&handelSD,0x1040D,handelSD.initarg << 0x10))
 		return -1;
 	
-	if((sdmmc_send_command(&handelSD,0x10410,0x200) & 0x4))
+	if(sdmmc_send_command(&handelSD,0x10410,0x200))
 		return -1;
 	handelSD.clk |= 0x200;
 	
