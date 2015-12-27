@@ -24,7 +24,7 @@ DSTATUS disk_initialize (
     BYTE pdrv               /* Physical drive nmuber (0..) */
 )
 {
-    sdmmc_sdcard_init();
+    sdmmc_init();
     return RES_OK;
 }
 
@@ -56,7 +56,7 @@ DRESULT disk_read (
 {
     switch(pdrv){
         case 0:
-            if (sdmmc_sdcard_readsectors(sector,count,(uint8_t *)buff))
+            if (sdmmc_readsectors(SDMMC_DEV_SDMC, sector,count,(uint8_t *)buff))
                 return RES_PARERR;
             break;
         case 1:
@@ -85,7 +85,7 @@ DRESULT disk_write (
 {
     switch(pdrv){
         case 0:
-            if (sdmmc_sdcard_writesectors(sector,count,(uint8_t *)buff))
+            if (sdmmc_writesectors(SDMMC_DEV_SDMC, sector,count,(uint8_t *)buff))
                 return RES_PARERR;
             break;
         case 1:

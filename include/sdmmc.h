@@ -80,32 +80,23 @@ enum {
 	TMIO32_IRQ_TXRQ		= 0x1000
 };
 
+enum sdmmc_dev {
+	SDMMC_DEV_SDMC = 0,
+	SDMMC_DEV_NAND = 1,
+
+	SDMMC_DEV_NUM
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+	void sdmmc_init();
 
-	typedef struct mmcdevice {
-		uint8_t* data;
-		uint32_t size;
-		uint32_t initarg;
-		uint32_t isSDHC;
-		uint32_t clk;
-		uint32_t SDOPT;
-		uint32_t devicenumber;
-		uint32_t total_size; //size in sectors of the device
-		uint32_t res;
-	} mmcdevice;
-	
-	void sdmmc_sdcard_init();
-	uint32_t sdmmc_sdcard_readsector(uint32_t sector_no, uint8_t *out);
-	uint32_t sdmmc_sdcard_readsectors(uint32_t sector_no, uint32_t numsectors, uint8_t *out);
-	uint32_t sdmmc_sdcard_writesector(uint32_t sector_no, uint8_t *in);
-	uint32_t sdmmc_sdcard_writesectors(uint32_t sector_no, uint32_t numsectors, uint8_t *in);
-	
-	uint32_t sdmmc_nand_readsectors(uint32_t sector_no, uint32_t numsectors, uint8_t *out);
-	uint32_t sdmmc_nand_writesectors(uint32_t sector_no, uint32_t numsectors, uint8_t *in);
-	
-	mmcdevice *getMMCDevice(int drive);
+	uint32_t sdmmc_readsectors(enum sdmmc_dev target,
+		uint32_t sector_no, uint32_t numsectors, uint8_t *out);
+
+	uint32_t sdmmc_writesectors(enum sdmmc_dev target,
+		uint32_t sector_no, uint32_t numsectors, uint8_t *in);
 	
 	void InitSD();
 	uint32_t Nand_Init();
