@@ -97,19 +97,19 @@ extern "C" {
 	} mmcdevice;
 	
 	void sdmmc_sdcard_init();
-	int sdmmc_sdcard_readsector(uint32_t sector_no, uint8_t *out);
-	int sdmmc_sdcard_readsectors(uint32_t sector_no, uint32_t numsectors, uint8_t *out);
-	int sdmmc_sdcard_writesector(uint32_t sector_no, uint8_t *in);
-	int sdmmc_sdcard_writesectors(uint32_t sector_no, uint32_t numsectors, uint8_t *in);
+	uint32_t sdmmc_sdcard_readsector(uint32_t sector_no, uint8_t *out);
+	uint32_t sdmmc_sdcard_readsectors(uint32_t sector_no, uint32_t numsectors, uint8_t *out);
+	uint32_t sdmmc_sdcard_writesector(uint32_t sector_no, uint8_t *in);
+	uint32_t sdmmc_sdcard_writesectors(uint32_t sector_no, uint32_t numsectors, uint8_t *in);
 	
-	int sdmmc_nand_readsectors(uint32_t sector_no, uint32_t numsectors, uint8_t *out);
-	int sdmmc_nand_writesectors(uint32_t sector_no, uint32_t numsectors, uint8_t *in);
+	uint32_t sdmmc_nand_readsectors(uint32_t sector_no, uint32_t numsectors, uint8_t *out);
+	uint32_t sdmmc_nand_writesectors(uint32_t sector_no, uint32_t numsectors, uint8_t *in);
 	
 	mmcdevice *getMMCDevice(int drive);
 	
 	void InitSD();
-	int Nand_Init();
-	int SD_Init();
+	uint32_t Nand_Init();
+	uint32_t SD_Init();
 
 #ifdef __cplusplus
 };
