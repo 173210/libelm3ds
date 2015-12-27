@@ -200,7 +200,7 @@ uint32_t NO_INLINE sdmmc_sdcard_writesectors(uint32_t sector_no, uint32_t numsec
 	sdmmc_write16(REG_SDBLKCOUNT,numsectors);
 	handelSD.data = in;
 	handelSD.size = numsectors << 9;
-	return sdmmc_send_command(&handelSD,0x52C19,sector_no);
+	return sdmmc_send_command(&handelSD,0x42C19,sector_no);
 }
 
 uint32_t NO_INLINE sdmmc_sdcard_readsectors(uint32_t sector_no, uint32_t numsectors, uint8_t *out)
@@ -215,7 +215,7 @@ uint32_t NO_INLINE sdmmc_sdcard_readsectors(uint32_t sector_no, uint32_t numsect
 	sdmmc_write16(REG_SDBLKCOUNT,numsectors);
 	handelSD.data = out;
 	handelSD.size = numsectors << 9;
-	return sdmmc_send_command(&handelSD,0x33C12,sector_no);
+	return sdmmc_send_command(&handelSD,0x23C12,sector_no);
 }
 
 
@@ -234,7 +234,7 @@ uint32_t NO_INLINE sdmmc_nand_readsectors(uint32_t sector_no, uint32_t numsector
 	sdmmc_write16(REG_SDBLKCOUNT,numsectors);
 	handelNAND.data = out;
 	handelNAND.size = numsectors << 9;
-	r = sdmmc_send_command(&handelNAND,0x33C12,sector_no);
+	r = sdmmc_send_command(&handelNAND,0x23C12,sector_no);
 	inittarget(&handelSD);
 	return r;
 }
@@ -253,7 +253,7 @@ uint32_t NO_INLINE sdmmc_nand_writesectors(uint32_t sector_no, uint32_t numsecto
 	sdmmc_write16(REG_SDBLKCOUNT,numsectors);
 	handelNAND.data = in;
 	handelNAND.size = numsectors << 9;
-	r = sdmmc_send_command(&handelNAND,0x52C19,sector_no);
+	r = sdmmc_send_command(&handelNAND,0x42C19,sector_no);
 	inittarget(&handelSD);
 	return r;
 }
@@ -379,7 +379,7 @@ uint32_t Nand_Init()
 	{
 		while(1)
 		{
-			if(sdmmc_send_command(&handelNAND,0x10701,0x100000))
+			if(sdmmc_send_command(&handelNAND,0x0701,0x100000))
 				continue;
 
 			if(!sdmmc_wait_respend())
@@ -388,15 +388,15 @@ uint32_t Nand_Init()
 	}
 	while((sdmmc_read32(REG_SDRESP0) & 0x80000000) == 0);
 	
-	r = sdmmc_send_command(&handelNAND,0x10602,0x0);
+	r = sdmmc_send_command(&handelNAND,0x0602,0x0);
 	if(r)
 		return r;
 	
-	r = sdmmc_send_command(&handelNAND,0x10403,handelNAND.initarg << 0x10);
+	r = sdmmc_send_command(&handelNAND,0x0403,handelNAND.initarg << 0x10);
 	if(r)
 		return r;
 	
-	r = sdmmc_send_command(&handelNAND,0x10609,handelNAND.initarg << 0x10);
+	r = sdmmc_send_command(&handelNAND,0x0609,handelNAND.initarg << 0x10);
 	if(r)
 		return r;
 
@@ -408,25 +408,25 @@ uint32_t Nand_Init()
 	handelNAND.clk = 1;
 	setckl(1);
 	
-	r = sdmmc_send_command(&handelNAND,0x10407,handelNAND.initarg << 0x10);
+	r = sdmmc_send_command(&handelNAND,0x0407,handelNAND.initarg << 0x10);
 	if(r)
 		return r;
 	
 	handelNAND.SDOPT = 1;
 	
-	r = sdmmc_send_command(&handelNAND,0x10506,0x3B70100);
+	r = sdmmc_send_command(&handelNAND,0x0506,0x3B70100);
 	if(r)
 		return r;
 	
-	r = sdmmc_send_command(&handelNAND,0x10506,0x3B90100);
+	r = sdmmc_send_command(&handelNAND,0x0506,0x3B90100);
 	if(r)
 		return r;
 	
-	r = sdmmc_send_command(&handelNAND,0x1040D,handelNAND.initarg << 0x10);
+	r = sdmmc_send_command(&handelNAND,0x040D,handelNAND.initarg << 0x10);
 	if(r)
 		return r;
 	
-	r = sdmmc_send_command(&handelNAND,0x10410,0x200);
+	r = sdmmc_send_command(&handelNAND,0x0410,0x200);
 	if(r)
 		return r;
 	
@@ -446,17 +446,17 @@ uint32_t SD_Init()
 	waitcycles(0xF000);
 	sdmmc_send_command(&handelSD,0,0);
 
-	uint32_t temp = sdmmc_send_command(&handelSD,0x10408,0x1AA) ? 0 : 0x1 << 0x1E;
+	uint32_t temp = sdmmc_send_command(&handelSD,0x0408,0x1AA) ? 0 : 0x1 << 0x1E;
 
 	uint32_t temp2 = 0;
 	do
 	{
 		while(1)
 		{
-			sdmmc_send_command(&handelSD,0x10437,handelSD.initarg << 0x10);
+			sdmmc_send_command(&handelSD,0x0437,handelSD.initarg << 0x10);
 			temp2 = 1;
 
-			if(sdmmc_send_command(&handelSD,0x10769,0x00FF8000 | temp))
+			if(sdmmc_send_command(&handelSD,0x0769,0x00FF8000 | temp))
 				continue;
 
 			if(!sdmmc_wait_respend())
@@ -472,11 +472,11 @@ uint32_t SD_Init()
 	
 	handelSD.isSDHC = temp2;
 	
-	r = sdmmc_send_command(&handelSD,0x10602,0);
+	r = sdmmc_send_command(&handelSD,0x0602,0);
 	if(r)
 		return r;
 	
-	r = sdmmc_send_command(&handelSD,0x10403,0);
+	r = sdmmc_send_command(&handelSD,0x0403,0);
 	if(r)
 		return r;
 
@@ -486,7 +486,7 @@ uint32_t SD_Init()
 
 	handelSD.initarg = sdmmc_read32(REG_SDRESP0) >> 0x10;
 	
-	r = sdmmc_send_command(&handelSD,0x10609,handelSD.initarg << 0x10);
+	r = sdmmc_send_command(&handelSD,0x0609,handelSD.initarg << 0x10);
 	if(r)
 		return r;
 	
@@ -498,24 +498,24 @@ uint32_t SD_Init()
 	handelSD.clk = 1;
 	setckl(1);
 	
-	r = sdmmc_send_command(&handelSD,0x10507,handelSD.initarg << 0x10);
+	r = sdmmc_send_command(&handelSD,0x0507,handelSD.initarg << 0x10);
 	if(r)
 		return r;
 	
-	r = sdmmc_send_command(&handelSD,0x10437,handelSD.initarg << 0x10);
+	r = sdmmc_send_command(&handelSD,0x0437,handelSD.initarg << 0x10);
 	if(r)
 		return r;
 	
 	handelSD.SDOPT = 1;
-	r = sdmmc_send_command(&handelSD,0x10446,0x2);
+	r = sdmmc_send_command(&handelSD,0x0446,0x2);
 	if(r)
 		return r;
 	
-	r = sdmmc_send_command(&handelSD,0x1040D,handelSD.initarg << 0x10);
+	r = sdmmc_send_command(&handelSD,0x040D,handelSD.initarg << 0x10);
 	if(r)
 		return r;
 	
-	r = sdmmc_send_command(&handelSD,0x10410,0x200);
+	r = sdmmc_send_command(&handelSD,0x0410,0x200);
 	if(r)
 		return r;
 	handelSD.clk |= 0x200;
