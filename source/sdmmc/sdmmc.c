@@ -91,13 +91,27 @@ static uint32_t sdmmc_wait_respend()
 	return 0;
 }
 
-void NO_INLINE sdmmc_send_command(uint16_t cmd, uint32_t args)
+uint32_t NO_INLINE sdmmc_send_command(uint16_t cmd, uint32_t args, int cap_prev_error)
 {
-	while((sdmmc_read32(REG_SDSTATUS) & TMIO_STAT_CMD_BUSY)); //mmc working?
+	uint32_t status, error;
+	do
+	{
+		status = sdmmc_read32(REG_SDSTATUS);
+
+		if (cap_prev_error) {
+			error = status & TMIO_MASK_GW;
+			if (error)
+				return error;
+		}
+	}
+	while((status & TMIO_STAT_CMD_BUSY)); //mmc working?
+
 	sdmmc_write32(REG_SDIRMASK,0);
 	sdmmc_write32(REG_SDSTATUS,0);
 	sdmmc_write32(REG_SDCMDARG,args);
 	sdmmc_write16(REG_SDCMD,cmd);
+
+	return 0;
 }
 
 uint32_t sdmmc_readsectors(enum sdmmc_dev target,
@@ -117,7 +131,7 @@ uint32_t sdmmc_readsectors(enum sdmmc_dev target,
 #ifdef DATA32_SUPPORT
 	sdmmc_write16(REG_DATACTL32,TMIO32_ENABLE | TMIO32_STAT_RXRDY);
 #endif
-	sdmmc_send_command(0x3C12,sector_no);
+	sdmmc_send_command(0x3C12,sector_no,0);
 
 	uint16_t *dataPtr = (uint16_t*)out;
 	uint32_t *dataPtr32 = (uint32_t*)out;
@@ -185,7 +199,7 @@ uint32_t sdmmc_writesectors(enum sdmmc_dev target,
 #ifdef DATA32_SUPPORT
 	sdmmc_write16(REG_DATACTL32,TMIO32_ENABLE | TMIO32_STAT_RXRDY);
 #endif
-	sdmmc_send_command(0x2C19,sector_no);
+	sdmmc_send_command(0x2C19,sector_no,0);
 
 #ifdef DATA32_SUPPORT
 	uint32_t *dataPtr32 = (uint32_t*)in;
@@ -345,20 +359,25 @@ uint32_t Nand_Init()
 	inittarget(SDMMC_DEV_NAND);
 	waitcycles(0xF000);
 	
-	sdmmc_send_command(0,0);
+	sdmmc_send_command(0,0,0);
 	
 	do
 	{
 		do
-			sdmmc_send_command(0x0701,0x100000);
+			sdmmc_send_command(0x0701,0x100000,0);
 		while (sdmmc_wait_respend());
 	}
 	while((sdmmc_read32(REG_SDRESP0) & 0x80000000) == 0);
 	
-	sdmmc_send_command(0x0602,0x0);
-	sdmmc_send_command(0x0403,dev[SDMMC_DEV_NAND].initarg << 0x10);
+	sdmmc_send_command(0x0602,0x0,0);
+	r = sdmmc_send_command(0x0403,dev[SDMMC_DEV_NAND].initarg << 0x10,1);
+	if(r)
+		return r;
 
-	sdmmc_send_command(0x0609,dev[SDMMC_DEV_NAND].initarg << 0x10);
+	r = sdmmc_send_command(0x0609,dev[SDMMC_DEV_NAND].initarg << 0x10,1);
+	if(r)
+		return r;
+
 	r = sdmmc_wait_respend();
 	if(r)
 		return r;
@@ -367,14 +386,25 @@ uint32_t Nand_Init()
 	dev[SDMMC_DEV_NAND].clk = 1;
 	setckl(1);
 	
-	sdmmc_send_command(0x0407,dev[SDMMC_DEV_NAND].initarg << 0x10);
+	sdmmc_send_command(0x0407,dev[SDMMC_DEV_NAND].initarg << 0x10,0);
 	dev[SDMMC_DEV_NAND].SDOPT = 1;
 
-	sdmmc_send_command(0x0506,0x3B70100);
-	sdmmc_send_command(0x0506,0x3B90100);
-	sdmmc_send_command(0x040D,dev[SDMMC_DEV_NAND].initarg << 0x10);
+	r = sdmmc_send_command(0x0506,0x3B70100,1);
+	if(r)
+		return r;
 
-	sdmmc_send_command(0x0410,0x200);
+	r = sdmmc_send_command(0x0506,0x3B90100,1);
+	if(r)
+		return r;
+
+	r = sdmmc_send_command(0x040D,dev[SDMMC_DEV_NAND].initarg << 0x10,1);
+	if(r)
+		return r;
+
+	r = sdmmc_send_command(0x0410,0x200,1);
+	if(r)
+		return r;
+
 	dev[SDMMC_DEV_NAND].clk |= 0x200;
 	
 	inittarget(SDMMC_DEV_SDMC);
@@ -389,19 +419,26 @@ uint32_t SD_Init()
 
 	inittarget(SDMMC_DEV_SDMC);
 	waitcycles(0xF000);
-	sdmmc_send_command(0,0);
+	sdmmc_send_command(0,0,0);
 
-	sdmmc_send_command(0x0408,0x1AA);
+	r = sdmmc_send_command(0x0408,0x1AA,1);
+	if(r)
+		return r;
+
 	uint32_t temp = sdmmc_wait_respend() ? 0 : 0x1 << 0x1E;
 
 	uint32_t temp2 = 0;
 	do
 	{
-		do {
-			sdmmc_send_command(0x0437,dev[SDMMC_DEV_SDMC].initarg << 0x10);
+		while(1)
+		{
+			sdmmc_send_command(0x0437,dev[SDMMC_DEV_SDMC].initarg << 0x10,0);
 			temp2 = 1;
-			sdmmc_send_command(0x0769,0x00FF8000 | temp);
-		} while (sdmmc_wait_respend());
+			if(sdmmc_send_command(0x0769,0x00FF8000 | temp,1))
+				continue;
+			if(!sdmmc_wait_respend())
+				break;
+		}
 
 		resp = sdmmc_read32(REG_SDRESP0);
 	}
@@ -412,15 +449,18 @@ uint32_t SD_Init()
 	
 	dev[SDMMC_DEV_SDMC].isSDHC = temp2;
 	
-	sdmmc_send_command(0x0602,0);
+	sdmmc_send_command(0x0602,0,0);
 	
-	sdmmc_send_command(0x0403,0);
+	r = sdmmc_send_command(0x0403,0,1);
+	if(r)
+		return r;
+
 	r = sdmmc_wait_respend();
 	if(r)
 		return r;
 
 	dev[SDMMC_DEV_SDMC].initarg = sdmmc_read32(REG_SDRESP0) >> 0x10;
-	sdmmc_send_command(0x0609,dev[SDMMC_DEV_SDMC].initarg << 0x10);
+	sdmmc_send_command(0x0609,dev[SDMMC_DEV_SDMC].initarg << 0x10,0);
 	r = sdmmc_wait_respend();
 	if(r)
 		return r;
@@ -429,14 +469,24 @@ uint32_t SD_Init()
 	dev[SDMMC_DEV_SDMC].clk = 1;
 	setckl(1);
 	
-	sdmmc_send_command(0x0507,dev[SDMMC_DEV_SDMC].initarg << 0x10);
-	sdmmc_send_command(0x0437,dev[SDMMC_DEV_SDMC].initarg << 0x10);
+	sdmmc_send_command(0x0507,dev[SDMMC_DEV_SDMC].initarg << 0x10,0);
+	r = sdmmc_send_command(0x0437,dev[SDMMC_DEV_SDMC].initarg << 0x10,1);
+	if(r)
+		return r;
 	
 	dev[SDMMC_DEV_SDMC].SDOPT = 1;
-	sdmmc_send_command(0x0446,0x2);
-	sdmmc_send_command(0x040D,dev[SDMMC_DEV_SDMC].initarg << 0x10);
+	r = sdmmc_send_command(0x0446,0x2,1);
+	if(r)
+		return r;
+
+	r = sdmmc_send_command(0x040D,dev[SDMMC_DEV_SDMC].initarg << 0x10,1);
+	if(r)
+		return r;
 	
-	sdmmc_send_command(0x0410,0x200);
+	r = sdmmc_send_command(0x0410,0x200,1);
+	if(r)
+		return r;
+
 	dev[SDMMC_DEV_SDMC].clk |= 0x200;
 	
 	return 0;
