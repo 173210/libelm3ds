@@ -207,7 +207,6 @@ void NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint32_t 
 				break;
 		}
 	}
-	ctx->stat = sdmmc_read32(REG_SDSTATUS);
 	sdmmc_write32(REG_SDSTATUS,0);
 }
 
