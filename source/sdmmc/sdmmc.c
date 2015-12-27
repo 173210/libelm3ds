@@ -188,74 +188,56 @@ uint32_t NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint3
 	return 0;
 }
 
+static uint32_t sdmmc_readsectors(struct mmcdevice *ctx,
+	uint32_t sector_no, uint32_t numsectors, uint8_t *out)
+{
+	if(ctx->isSDHC == 0) sector_no <<= 9;
+	inittarget(ctx);
+	sdmmc_write16(REG_SDSTOP,0x100);
+#ifdef DATA32_SUPPORT
+	sdmmc_write16(REG_SDBLKCOUNT32,numsectors);
+	sdmmc_write16(REG_SDBLKLEN32,0x200);
+#endif
+	sdmmc_write16(REG_SDBLKCOUNT,numsectors);
+	ctx->data = out;
+	ctx->size = numsectors << 9;
+	return sdmmc_send_command(ctx,0x23C12,sector_no);
+}
+
+static uint32_t sdmmc_writesectors(struct mmcdevice *ctx,
+	uint32_t sector_no, uint32_t numsectors, uint8_t *in)
+{
+	if(ctx->isSDHC == 0) sector_no <<= 9;
+	inittarget(ctx);
+	sdmmc_write16(REG_SDSTOP,0x100);
+#ifdef DATA32_SUPPORT
+	sdmmc_write16(REG_SDBLKCOUNT32,numsectors);
+	sdmmc_write16(REG_SDBLKLEN32,0x200);
+#endif
+	sdmmc_write16(REG_SDBLKCOUNT,numsectors);
+	ctx->data = in;
+	ctx->size = numsectors << 9;
+	return sdmmc_send_command(ctx,0x42C19,sector_no);
+}
+
 uint32_t NO_INLINE sdmmc_sdcard_writesectors(uint32_t sector_no, uint32_t numsectors, uint8_t *in)
 {
-	if(handelSD.isSDHC == 0) sector_no <<= 9;
-	inittarget(&handelSD);
-	sdmmc_write16(REG_SDSTOP,0x100);
-#ifdef DATA32_SUPPORT
-	sdmmc_write16(REG_SDBLKCOUNT32,numsectors);
-	sdmmc_write16(REG_SDBLKLEN32,0x200);
-#endif
-	sdmmc_write16(REG_SDBLKCOUNT,numsectors);
-	handelSD.data = in;
-	handelSD.size = numsectors << 9;
-	return sdmmc_send_command(&handelSD,0x42C19,sector_no);
+	return sdmmc_writesectors(&handelNAND, sector_no, numsectors, in);
 }
 
-uint32_t NO_INLINE sdmmc_sdcard_readsectors(uint32_t sector_no, uint32_t numsectors, uint8_t *out)
+uint32_t sdmmc_sdcard_readsectors(uint32_t sector_no, uint32_t numsectors, uint8_t *out)
 {
-	if(handelSD.isSDHC == 0) sector_no <<= 9;
-	inittarget(&handelSD);
-	sdmmc_write16(REG_SDSTOP,0x100);
-#ifdef DATA32_SUPPORT
-	sdmmc_write16(REG_SDBLKCOUNT32,numsectors);
-	sdmmc_write16(REG_SDBLKLEN32,0x200);
-#endif
-	sdmmc_write16(REG_SDBLKCOUNT,numsectors);
-	handelSD.data = out;
-	handelSD.size = numsectors << 9;
-	return sdmmc_send_command(&handelSD,0x23C12,sector_no);
+	return sdmmc_readsectors(&handelSD, sector_no, numsectors, out);
 }
-
-
 
 uint32_t NO_INLINE sdmmc_nand_readsectors(uint32_t sector_no, uint32_t numsectors, uint8_t *out)
 {
-	uint32_t r;
-
-	if(handelNAND.isSDHC == 0) sector_no <<= 9;
-	inittarget(&handelNAND);
-	sdmmc_write16(REG_SDSTOP,0x100);
-#ifdef DATA32_SUPPORT
-	sdmmc_write16(REG_SDBLKCOUNT32,numsectors);
-	sdmmc_write16(REG_SDBLKLEN32,0x200);
-#endif
-	sdmmc_write16(REG_SDBLKCOUNT,numsectors);
-	handelNAND.data = out;
-	handelNAND.size = numsectors << 9;
-	r = sdmmc_send_command(&handelNAND,0x23C12,sector_no);
-	inittarget(&handelSD);
-	return r;
+	return sdmmc_readsectors(&handelNAND, sector_no, numsectors, out);
 }
 
-uint32_t NO_INLINE sdmmc_nand_writesectors(uint32_t sector_no, uint32_t numsectors, uint8_t *in) //experimental
+uint32_t NO_INLINE sdmmc_nand_writesectors(uint32_t sector_no, uint32_t numsectors, uint8_t *in)
 {
-	uint32_t r;
-
-	if(handelNAND.isSDHC == 0) sector_no <<= 9;
-	inittarget(&handelNAND);
-	sdmmc_write16(REG_SDSTOP,0x100);
-#ifdef DATA32_SUPPORT
-	sdmmc_write16(REG_SDBLKCOUNT32,numsectors);
-	sdmmc_write16(REG_SDBLKLEN32,0x200);
-#endif
-	sdmmc_write16(REG_SDBLKCOUNT,numsectors);
-	handelNAND.data = in;
-	handelNAND.size = numsectors << 9;
-	r = sdmmc_send_command(&handelNAND,0x42C19,sector_no);
-	inittarget(&handelSD);
-	return r;
+	return sdmmc_writesectors(&handelNAND, sector_no, numsectors, in);
 }
 
 static uint32_t calcSDSize(uint8_t* csd, int type)
