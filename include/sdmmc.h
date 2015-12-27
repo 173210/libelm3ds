@@ -87,7 +87,6 @@ extern "C" {
 	typedef struct mmcdevice {
 		uint8_t* data;
 		uint32_t size;
-		uint32_t error;
 		uint32_t initarg;
 		uint32_t isSDHC;
 		uint32_t clk;
