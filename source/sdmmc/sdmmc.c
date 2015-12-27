@@ -96,7 +96,7 @@ void NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint32_t 
 	while((sdmmc_read32(REG_SDSTATUS) & TMIO_STAT_CMD_BUSY)); //mmc working?
 	sdmmc_write32(REG_SDIRMASK,0);
 	sdmmc_write32(REG_SDSTATUS,0);
-	sdmmc_mask16(REG_DATACTL32,0x1800,0);
+	sdmmc_mask16(REG_DATACTL32,TMIO32_IRQ_RXRDY | TMIO32_IRQ_TXRQ,0);
 	sdmmc_write32(REG_SDCMDARG,args);
 	sdmmc_write16(REG_SDCMD,cmd &0xFFFF);
 	
@@ -112,7 +112,7 @@ void NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint32_t 
 		volatile uint16_t status = sdmmc_read16(REG_SDSTATUS);
 #ifdef DATA32_SUPPORT
 		volatile uint16_t ctl32 = sdmmc_read16(REG_DATACTL32);
-		if((ctl32 & 0x100))
+		if((ctl32 & TMIO32_STAT_RXRDY))
 #else
 		if((status & TMIO_STAT_RXRDY))
 #endif
@@ -146,11 +146,11 @@ void NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint32_t 
 					}
 				}
 				
-				sdmmc_mask16(REG_DATACTL32, 0x800, 0);
+				sdmmc_mask16(REG_DATACTL32, TMIO32_IRQ_RXRDY, 0);
 			}
 		}
 #ifdef DATA32_SUPPORT
-		if(!(ctl32 & 0x200))
+		if(!(ctl32 & TMIO32_STAT_BUSY))
 #else
 		if((status & TMIO_STAT_TXRQ))
 #endif
@@ -177,7 +177,7 @@ void NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint32_t 
 					}
 				}
 				
-				sdmmc_mask16(REG_DATACTL32, 0x1000, 0);
+				sdmmc_mask16(REG_DATACTL32, TMIO32_IRQ_TXRQ, 0);
 			}
 		}
 		if(status & TMIO_MASK_GW)

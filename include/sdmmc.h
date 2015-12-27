@@ -72,6 +72,13 @@ enum sdmmc_regs {
 #define TMIO_MASK_READOP  (TMIO_STAT_RXRDY | TMIO_STAT_DATAEND)
 #define TMIO_MASK_WRITEOP (TMIO_STAT_TXRQ | TMIO_STAT_DATAEND)
 
+enum {
+	TMIO32_STAT_RXRDY	= 0x0100,
+	TMIO32_STAT_BUSY	= 0x0200,
+	TMIO32_IRQ_RXRDY	= 0x0800,
+	TMIO32_IRQ_TXRQ		= 0x1000
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
