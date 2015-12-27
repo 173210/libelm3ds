@@ -74,19 +74,29 @@ void inittarget(struct mmcdevice *ctx)
 	
 }
 
+static uint32_t sdmmc_wait_respend()
+{
+	uint32_t status, error;
+
+	do
+	{
+		status = sdmmc_read32(REG_SDSTATUS);
+
+		error = status & TMIO_MASK_GW;
+		if (error)
+			return error;
+	}
+	while (!(status & TMIO_STAT_CMDRESPEND));
+
+	return 0;
+}
+
 uint32_t NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint32_t args)
 {
-	uint16_t flags = (cmd << 15) >> 31;
 	const int readdata = cmd & 0x20000;
 	const int writedata = cmd & 0x40000;
 	uint32_t error;
 	
-	if(readdata || writedata)
-	{
-		flags |= TMIO_STAT_DATAEND;
-	}
-	
-	error = 0;
 	while((sdmmc_read32(REG_SDSTATUS) & TMIO_STAT_CMD_BUSY)); //mmc working?
 	sdmmc_write32(REG_SDIRMASK,0);
 	sdmmc_write32(REG_SDSTATUS,0);
@@ -101,7 +111,7 @@ uint32_t NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint3
 	int useBuf = ( NULL != dataPtr );
 	int useBuf32 = (useBuf && (0 == (3 & ((uint32_t)dataPtr))));
 	
-	while(1)
+	while(useBuf && size > 0x1FF)
 	{
 		volatile uint16_t status = sdmmc_read16(REG_SDSTATUS);
 #ifdef DATA32_SUPPORT
@@ -119,31 +129,25 @@ uint32_t NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint3
 
 			if(readdata)
 			{
-				if(useBuf)
+				#ifdef DATA32_SUPPORT
+				if(useBuf32)
 				{
-					if(size > 0x1FF)
+					for(int i = 0; i<0x200; i+=4)
 					{
-						#ifdef DATA32_SUPPORT
-						if(useBuf32)
-						{
-							for(int i = 0; i<0x200; i+=4)
-							{
-								*dataPtr32++ = sdmmc_read32(REG_SDFIFO32);
-							}
-						}
-						else 
-						{
-						#endif
-							for(int i = 0; i<0x200; i+=2)
-							{
-								*dataPtr++ = sdmmc_read16(REG_SDFIFO);
-							}
-						#ifdef DATA32_SUPPORT
-						}
-						#endif
-						size -= 0x200;
+						*dataPtr32++ = sdmmc_read32(REG_SDFIFO32);
 					}
 				}
+				else
+				{
+				#endif
+					for(int i = 0; i<0x200; i+=2)
+					{
+						*dataPtr++ = sdmmc_read16(REG_SDFIFO);
+					}
+				#ifdef DATA32_SUPPORT
+				}
+				#endif
+				size -= 0x200;
 			}
 		}
 #ifdef DATA32_SUPPORT
@@ -161,40 +165,27 @@ uint32_t NO_INLINE sdmmc_send_command(struct mmcdevice *ctx, uint32_t cmd, uint3
 
 			if(writedata)
 			{
-				if(useBuf)
+				#ifdef DATA32_SUPPORT
+				for(int i = 0; i<0x200; i+=4)
 				{
-					if(size > 0x1FF)
-					{
-						#ifdef DATA32_SUPPORT
-						for(int i = 0; i<0x200; i+=4)
-						{
-							sdmmc_write32(REG_SDFIFO32,*dataPtr32++);
-						}
-						#else
-						for(int i = 0; i<0x200; i+=2)
-						{
-							sdmmc_write16(REG_SDFIFO,*dataPtr++);
-						}
-						#endif
-						size -= 0x200;
-					}
+					sdmmc_write32(REG_SDFIFO32,*dataPtr32++);
 				}
+				#else
+				for(int i = 0; i<0x200; i+=2)
+				{
+					sdmmc_write16(REG_SDFIFO,*dataPtr++);
+				}
+				#endif
+				size -= 0x200;
 			}
 		}
 
 		error = status & TMIO_MASK_GW;
 		if (error)
-			break;
-		
-		if(!(status & TMIO_STAT_CMD_BUSY))
-		{
-			if((status & flags) == flags)
-				break;
-		}
+			return error;
 	}
-	sdmmc_write32(REG_SDSTATUS,0);
 
-	return error;
+	return 0;
 }
 
 uint32_t NO_INLINE sdmmc_sdcard_writesectors(uint32_t sector_no, uint32_t numsectors, uint8_t *in)
@@ -386,7 +377,14 @@ uint32_t Nand_Init()
 	
 	do
 	{
-		while (sdmmc_send_command(&handelNAND,0x10701,0x100000));
+		while(1)
+		{
+			if(sdmmc_send_command(&handelNAND,0x10701,0x100000))
+				continue;
+
+			if(!sdmmc_wait_respend())
+				break;
+		}
 	}
 	while((sdmmc_read32(REG_SDRESP0) & 0x80000000) == 0);
 	
@@ -399,6 +397,10 @@ uint32_t Nand_Init()
 		return r;
 	
 	r = sdmmc_send_command(&handelNAND,0x10609,handelNAND.initarg << 0x10);
+	if(r)
+		return r;
+
+	r = sdmmc_wait_respend();
 	if(r)
 		return r;
 	
@@ -449,11 +451,17 @@ uint32_t SD_Init()
 	uint32_t temp2 = 0;
 	do
 	{
-		do
+		while(1)
 		{
 			sdmmc_send_command(&handelSD,0x10437,handelSD.initarg << 0x10);
 			temp2 = 1;
-		} while (sdmmc_send_command(&handelSD,0x10769,0x00FF8000 | temp));
+
+			if(sdmmc_send_command(&handelSD,0x10769,0x00FF8000 | temp))
+				continue;
+
+			if(!sdmmc_wait_respend())
+				break;
+		}
 
 		resp = sdmmc_read32(REG_SDRESP0);
 	}
@@ -472,12 +480,20 @@ uint32_t SD_Init()
 	if(r)
 		return r;
 
+	r = sdmmc_wait_respend();
+	if(r)
+		return r;
+
 	handelSD.initarg = sdmmc_read32(REG_SDRESP0) >> 0x10;
 	
 	r = sdmmc_send_command(&handelSD,0x10609,handelSD.initarg << 0x10);
 	if(r)
 		return r;
 	
+	r = sdmmc_wait_respend();
+	if(r)
+		return r;
+
 	handelSD.total_size = calcSDSize((uint8_t*)SDMMC_BASE + REG_SDRESP0,-1);
 	handelSD.clk = 1;
 	setckl(1);
