@@ -106,7 +106,6 @@ uint32_t NO_INLINE sdmmc_send_command(uint16_t cmd, uint32_t args, int cap_prev_
 	}
 	while((status & TMIO_STAT_CMD_BUSY)); //mmc working?
 
-	sdmmc_write32(REG_SDIRMASK,0);
 	sdmmc_write32(REG_SDSTATUS,0);
 	sdmmc_write32(REG_SDCMDARG,args);
 	sdmmc_write16(REG_SDCMD,cmd);
