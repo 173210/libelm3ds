@@ -59,8 +59,22 @@ static struct {
 	uint32_t res;
 } dev[SDMMC_DEV_NUM];
 
+static int waitDataend = 0;
+
 void inittarget(enum sdmmc_dev target)
 {
+	uint32_t status;
+
+	if(waitDataend)
+	{
+		do
+			status = sdmmc_read32(REG_SDSTATUS);
+		while ((!(status & TMIO_STAT_DATAEND) || (status & TMIO_STAT_CMD_BUSY))
+			&& !(status & TMIO_MASK_GW));
+
+		waitDataend = 0;
+	}
+
 	sdmmc_mask16(REG_SDPORTSEL,0x3,target);
 	setckl(dev[target].clk);
 	if(dev[target].SDOPT == 0)
@@ -71,7 +85,6 @@ void inittarget(enum sdmmc_dev target)
 	{
 		sdmmc_mask16(REG_SDOPT,0x8000,0);
 	}
-	
 }
 
 static uint32_t sdmmc_wait_respend()
@@ -94,6 +107,7 @@ static uint32_t sdmmc_wait_respend()
 uint32_t NO_INLINE sdmmc_send_command(uint16_t cmd, uint32_t args, int cap_prev_error)
 {
 	uint32_t status, error;
+
 	do
 	{
 		status = sdmmc_read32(REG_SDSTATUS);
@@ -242,6 +256,7 @@ uint32_t sdmmc_writesectors(enum sdmmc_dev target,
 			return error;
 	}
 
+	waitDataend = 1;
 	return 0;
 }
 
