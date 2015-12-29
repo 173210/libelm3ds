@@ -42,13 +42,7 @@
 
 #define NO_INLINE __attribute__ ((noinline))
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-	void waitcycles(uint32_t val);
-#ifdef __cplusplus
-};
-#endif
+void waitcycles(uint32_t val);
 
 static struct {
 	uint32_t initarg;
