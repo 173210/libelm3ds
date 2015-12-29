@@ -32,7 +32,8 @@
 #include <dirent.h>
 #include <errno.h>
 
-#include "sdmmc.h"
+#include <sdmmc.h>
+#include "sdmmc_hardware.h"
 
 #define DATA32_SUPPORT
 
