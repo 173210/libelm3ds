@@ -61,16 +61,32 @@ static struct {
 
 static int waitDataend = 0;
 
+static void sdmmc_wfi()
+{
+	// Acknowledge the previous TMIO IRQ
+	*(volatile uint32_t *)0x10001004 = 0x00010000;
+
+	// Wait for interrupt
+	__asm__ volatile ("mcr p15, 0, %0, c7, c0, 4" :: "r"(0));
+}
+
 void inittarget(enum sdmmc_dev target)
 {
 	uint32_t status;
 
 	if(waitDataend)
 	{
+		sdmmc_write32(REG_SDIRMASK, ~(TMIO_STAT_DATAEND | TMIO_MASK_GW));
 		do
+		{
+			sdmmc_wfi();
+			sdmmc_write32(REG_SDSTATUS, ~TMIO_STAT_DATAEND);
+
 			status = sdmmc_read32(REG_SDSTATUS);
-		while ((!(status & TMIO_STAT_DATAEND) || (status & TMIO_STAT_CMD_BUSY))
-			&& !(status & TMIO_MASK_GW));
+			if((status & TMIO_MASK_GW))
+				break;
+		}
+		while ((status & TMIO_STAT_CMD_BUSY));
 
 		waitDataend = 0;
 	}
@@ -91,34 +107,30 @@ static uint32_t sdmmc_wait_respend()
 {
 	uint32_t status, error;
 
+	sdmmc_write32(REG_SDIRMASK, ~(TMIO_STAT_CMDRESPEND | TMIO_MASK_GW));
 	do
 	{
+		sdmmc_wfi();
 		status = sdmmc_read32(REG_SDSTATUS);
-
 		error = status & TMIO_MASK_GW;
-		if (error)
+		if(error)
 			return error;
 	}
-	while (!(status & TMIO_STAT_CMDRESPEND));
+	while(!(status & TMIO_STAT_CMDRESPEND));
 
 	return 0;
 }
 
 uint32_t NO_INLINE sdmmc_send_command(uint16_t cmd, uint32_t args, int cap_prev_error)
 {
-	uint32_t status, error;
+	uint32_t r;
 
-	do
+	if ((sdmmc_read32(REG_SDSTATUS) & TMIO_STAT_CMD_BUSY))
 	{
-		status = sdmmc_read32(REG_SDSTATUS);
-
-		if (cap_prev_error) {
-			error = status & TMIO_MASK_GW;
-			if (error)
-				return error;
-		}
+		r = sdmmc_wait_respend();
+		if(r && cap_prev_error)
+			return r;
 	}
-	while((status & TMIO_STAT_CMD_BUSY)); //mmc working?
 
 	sdmmc_write32(REG_SDSTATUS,0);
 	sdmmc_write32(REG_SDCMDARG,args);
@@ -130,7 +142,7 @@ uint32_t NO_INLINE sdmmc_send_command(uint16_t cmd, uint32_t args, int cap_prev_
 uint32_t sdmmc_readsectors(enum sdmmc_dev target,
 	uint32_t sector_no, uint32_t numsectors, uint8_t *out)
 {
-	uint32_t error;
+	uint32_t error, mask;
 
 	if(dev[target].isSDHC == 0) sector_no <<= 9;
 	inittarget(target);
@@ -141,9 +153,14 @@ uint32_t sdmmc_readsectors(enum sdmmc_dev target,
 #endif
 	sdmmc_write16(REG_SDBLKCOUNT,numsectors);
 
+	mask = TMIO_MASK_GW;
 #ifdef DATA32_SUPPORT
-	sdmmc_write16(REG_DATACTL32,TMIO32_ENABLE | TMIO32_STAT_RXRDY);
+	sdmmc_write16(REG_DATACTL32,TMIO32_ENABLE | TMIO32_IRQ_RXRDY);
+#else
+	mask |= TMIO_STAT_RXRDY;
 #endif
+
+	sdmmc_write32(REG_SDIRMASK,~mask);
 	sdmmc_send_command(0x3C12,sector_no,0);
 
 	uint16_t *dataPtr = (uint16_t*)out;
@@ -152,44 +169,36 @@ uint32_t sdmmc_readsectors(enum sdmmc_dev target,
 
 	while(numsectors > 0)
 	{
-		volatile uint16_t status = sdmmc_read16(REG_SDSTATUS);
-#ifdef DATA32_SUPPORT
-		volatile uint16_t ctl32 = sdmmc_read16(REG_DATACTL32);
-		if((ctl32 & TMIO32_STAT_RXRDY))
-#else
-		if((status & TMIO_STAT_RXRDY))
-#endif
-		{
-#ifdef DATA32_SUPPORT
-			sdmmc_write16(REG_DATACTL32, TMIO32_ENABLE);
-#else
-			sdmmc_write32(REG_SDSTATUS, ~TMIO_STAT_RXRDY);
-#endif
+		sdmmc_wfi();
 
-			#ifdef DATA32_SUPPORT
-			if(useBuf32)
-			{
-				for(int i = 0; i<0x200; i+=4)
-				{
-					*dataPtr32++ = sdmmc_read32(REG_SDFIFO32);
-				}
-			}
-			else
-			{
-			#endif
-				for(int i = 0; i<0x200; i+=2)
-				{
-					*dataPtr++ = sdmmc_read16(REG_SDFIFO);
-				}
-			#ifdef DATA32_SUPPORT
-			}
-			#endif
-			numsectors--;
-		}
-
-		error = status & TMIO_MASK_GW;
-		if (error)
+		error = sdmmc_read32(REG_SDSTATUS) & TMIO_MASK_GW;
+		if(error)
 			return error;
+
+#ifdef DATA32_SUPPORT
+		if(!(sdmmc_read16(REG_DATACTL32) & TMIO32_STAT_RXRDY))
+			continue;
+#endif
+
+		#ifdef DATA32_SUPPORT
+		if(useBuf32)
+		{
+			for(int i = 0; i<0x200; i+=4)
+			{
+				*dataPtr32++ = sdmmc_read32(REG_SDFIFO32);
+			}
+		}
+		else
+		{
+		#endif
+			for(int i = 0; i<0x200; i+=2)
+			{
+				*dataPtr++ = sdmmc_read16(REG_SDFIFO);
+			}
+		#ifdef DATA32_SUPPORT
+		}
+		#endif
+		numsectors--;
 	}
 
 	return 0;
@@ -198,7 +207,7 @@ uint32_t sdmmc_readsectors(enum sdmmc_dev target,
 uint32_t sdmmc_writesectors(enum sdmmc_dev target,
 	uint32_t sector_no, uint32_t numsectors, uint8_t *in)
 {
-	uint32_t error;
+	uint32_t error, mask;
 
 	if(dev[target].isSDHC == 0) sector_no <<= 9;
 	inittarget(target);
@@ -209,9 +218,14 @@ uint32_t sdmmc_writesectors(enum sdmmc_dev target,
 #endif
 	sdmmc_write16(REG_SDBLKCOUNT,numsectors);
 
+	mask = TMIO_MASK_GW;
 #ifdef DATA32_SUPPORT
-	sdmmc_write16(REG_DATACTL32,TMIO32_ENABLE | TMIO32_STAT_RXRDY);
+	sdmmc_write16(REG_DATACTL32,TMIO32_ENABLE | TMIO32_IRQ_TXRQ);
+#else
+	mask |= TMIO_STAT_RXRDY;
 #endif
+	sdmmc_write32(REG_SDIRMASK,~mask);
+
 	sdmmc_send_command(0x2C19,sector_no,0);
 
 #ifdef DATA32_SUPPORT
@@ -222,38 +236,29 @@ uint32_t sdmmc_writesectors(enum sdmmc_dev target,
 
 	while(numsectors > 0)
 	{
-		volatile uint16_t status = sdmmc_read16(REG_SDSTATUS);
-#ifdef DATA32_SUPPORT
-		volatile uint16_t ctl32 = sdmmc_read16(REG_DATACTL32);
-		if(!(ctl32 & TMIO32_STAT_BUSY))
-#else
-		if((status & TMIO_STAT_TXRQ))
-#endif
-		{
-#ifdef DATA32_SUPPORT
-			sdmmc_write16(REG_DATACTL32,
-				TMIO32_ENABLE | TMIO32_STAT_RXRDY | TMIO32_STAT_BUSY);
-#else
-			sdmmc_write32(REG_SDSTATUS, ~TMIO_STAT_TXRQ);
-#endif
+		sdmmc_wfi();
 
-			#ifdef DATA32_SUPPORT
-			for(int i = 0; i<0x200; i+=4)
-			{
-				sdmmc_write32(REG_SDFIFO32,*dataPtr32++);
-			}
-			#else
-			for(int i = 0; i<0x200; i+=2)
-			{
-				sdmmc_write16(REG_SDFIFO,*dataPtr++);
-			}
-			#endif
-			numsectors--;
-		}
-
-		error = status & TMIO_MASK_GW;
-		if (error)
+		error = sdmmc_read32(REG_SDSTATUS) & TMIO_MASK_GW;
+		if(error)
 			return error;
+
+#ifdef DATA32_SUPPORT
+		if((sdmmc_read16(REG_DATACTL32) & TMIO32_STAT_BUSY))
+			continue;
+#endif
+
+		#ifdef DATA32_SUPPORT
+		for(int i = 0; i<0x200; i+=4)
+		{
+			sdmmc_write32(REG_SDFIFO32,*dataPtr32++);
+		}
+		#else
+		for(int i = 0; i<0x200; i+=2)
+		{
+			sdmmc_write16(REG_SDFIFO,*dataPtr++);
+		}
+		#endif
+		numsectors--;
 	}
 
 	waitDataend = 1;
