@@ -23,7 +23,7 @@ INCLUDES	:=	include
 #---------------------------------------------------------------------------------
 # options for code generation
 #---------------------------------------------------------------------------------
-CFLAGS	:=	-g -Wall -Os -std=c11\
+CFLAGS	:=	-g -Wall -O2 -std=c11\
 		-march=armv5te -mtune=arm946e-s \
 		-fomit-frame-pointer -ffast-math \
 		-Iinclude
