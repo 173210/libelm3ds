@@ -97,11 +97,6 @@ extern "C" {
 
 	uint32_t sdmmc_writesectors(enum sdmmc_dev target,
 		uint32_t sector_no, uint32_t numsectors, uint8_t *in);
-	
-	void InitSD();
-	uint32_t Nand_Init();
-	uint32_t SD_Init();
-
 #ifdef __cplusplus
 };
 #endif

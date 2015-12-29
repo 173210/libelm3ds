@@ -40,8 +40,6 @@
 #define TRUE 1
 #define FALSE 0
 
-#define NO_INLINE __attribute__ ((noinline))
-
 void waitcycles(uint32_t val);
 
 static struct {
@@ -64,7 +62,7 @@ static void sdmmc_wfi()
 	__asm__ volatile ("mcr p15, 0, %0, c7, c0, 4" :: "r"(0));
 }
 
-void inittarget(enum sdmmc_dev target)
+static void inittarget(enum sdmmc_dev target)
 {
 	uint32_t status;
 
@@ -115,7 +113,7 @@ static uint32_t sdmmc_wait_respend()
 	return 0;
 }
 
-uint32_t NO_INLINE sdmmc_send_command(uint16_t cmd, uint32_t args, int cap_prev_error)
+static uint32_t sdmmc_send_command(uint16_t cmd, uint32_t args, int cap_prev_error)
 {
 	uint32_t r;
 
@@ -287,7 +285,7 @@ static uint32_t calcSDSize(uint8_t* csd, int type)
   return result;
 }
 
-void InitSD()
+static void InitSD()
 {
 	//NAND
 	dev[SDMMC_DEV_NAND].isSDHC = 0;
@@ -365,7 +363,7 @@ void InitSD()
 	inittarget(SDMMC_DEV_SDMC);
 }
 
-uint32_t Nand_Init()
+static uint32_t Nand_Init()
 {
 	uint32_t r;
 
@@ -425,7 +423,7 @@ uint32_t Nand_Init()
 	return 0;
 }
 
-uint32_t SD_Init()
+static uint32_t SD_Init()
 {
 	uint32_t resp;
 	uint32_t r;
