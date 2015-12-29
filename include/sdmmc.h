@@ -1,9 +1,6 @@
 #ifndef __SDMMC_H__
 #define __SDMMC_H__
 
-#define TRUE 1
-#define FALSE 0
-
 #include <stdint.h>
 
 #define SDMMC_BASE				0x10006000

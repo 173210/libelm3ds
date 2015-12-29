@@ -33,12 +33,8 @@
 #include <errno.h>
 
 #include "sdmmc.h"
-//#include "DrawCharacter.h"
 
 #define DATA32_SUPPORT
-
-#define TRUE 1
-#define FALSE 0
 
 void waitcycles(uint32_t val);
 
